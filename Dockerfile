@@ -36,4 +36,4 @@ USER node
 
 WORKDIR /home/node/app
 
-CMD [ "node", "src/index.js"]
+CMD [ "node", "index.js"]

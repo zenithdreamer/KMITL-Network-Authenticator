@@ -208,10 +208,8 @@ async function start(): Promise<void> {
 }
 
 async function main() {
-  if (!username || !password || !ipAddress) {
-    log(
-      "Missing username, password, or IP address. Set them in environment variables."
-    );
+  if (!username || !password) {
+    log("Missing username, password. Set them in environment variables.");
     process.exit(1);
   }
 

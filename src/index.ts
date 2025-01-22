@@ -56,7 +56,7 @@ async function getLoginUrl(): Promise<LoginUrlResponse | null> {
   try {
     const response = await axios.get(generate204Url);
     const html = response.data;
-    const urlMatch = html.match(/URL=([^"]+)/);
+    const urlMatch = html.match(/URL=([^"']+)/);
     if (urlMatch && urlMatch[1]) {
       const url = decodeURI(urlMatch[1]);
       const query = new URL(url).searchParams;
@@ -105,24 +105,13 @@ async function login(): Promise<LoginResult | null> {
   }
 
   const postData = new URLSearchParams({
-    //pushPageId: "", // uuid
     userPass: password,
-    //esn: "",
-    //apmac: "",
-    //armac: "",
     authType: "1",
     ssid: loginUrlData?.data.ssid ? btoa(loginUrlData.data.ssid) : "",
     uaddress: loginUrlData?.data.uaddress ?? ipAddress,
     umac: loginUrlData?.data.umac ?? defaultRandomUmac,
-    //accessMac: "",
-    //businessType: "",
     acip: loginUrlData?.data.acip ?? defaultAcip,
     agreed: "1",
-    //registerCode: "",
-    //questions: "",
-    //dynamicValidCode: "",
-    //dynamicRSAToken: "",
-    //validCode: "",
     userName: username,
   }).toString();
 
@@ -175,8 +164,9 @@ async function checkConnection(): Promise<boolean> {
   }
 }
 
-async function start(): Promise<void> {
+async function start(): Promise<boolean> {
   let loginAttempts = 0;
+  let firstConnect = true;
 
   const loginResult = await login();
   if (loginResult) await heartbeat();
@@ -186,8 +176,11 @@ async function start(): Promise<void> {
     const isConnected = await checkConnection();
     log(`Connection status: ${isConnected ? "Connected" : "Disconnected"}`);
     if (isConnected) {
-      log(`Logged in as ${username}! Your IP: ${ipAddress}`);
-      log(`Checking every ${timeRepeat / 1000} seconds.`);
+      if (firstConnect) {
+        log(`Logged in as ${username}! Your IP: ${ipAddress}`);
+        log(`Checking every ${timeRepeat / 1000} seconds.`);
+        firstConnect = false;
+      }
 
       const isHeartbeatSuccessful = await heartbeat();
       if (!isHeartbeatSuccessful) {
@@ -196,9 +189,9 @@ async function start(): Promise<void> {
 
       await new Promise((resolve) => setTimeout(resolve, timeRepeat));
     } else {
-      if (loginAttempts >= maxLoginAttempt) {
-        log("Max login attempts reached. Please check your credentials.");
-        break;
+      if (maxLoginAttempt > 0 && loginAttempts >= maxLoginAttempt) {
+        log("Max login attempts reached. Restarting main...");
+        return false;
       }
       await login();
       loginAttempts++;
@@ -214,7 +207,11 @@ async function main() {
   }
 
   log(`Logging in with username '${username}'...`);
-  await start();
+
+  const shouldRestart = await start();
+  if (!shouldRestart) {
+    await main();
+  }
 }
 
 main();

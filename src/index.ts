@@ -2,7 +2,18 @@ import axios from "axios";
 import { URL } from "url";
 import * as uuid from "uuid";
 import dotenv from "dotenv";
+import https from "https";
+import dns from "dns";
 dotenv.config();
+
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
+
+const agent = new https.Agent({
+  rejectUnauthorized: false,
+});
+
+// Disable SSL warnings
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 const defaultAcip = "10.252.155.2"; // 10.252.13.10
 
@@ -20,6 +31,7 @@ const password = process.env.KMITL_PASSWORD || "";
 const ipAddress = process.env.IP_ADDRESS || "";
 
 const serverUrl = "https://portal.kmitl.ac.th:19008/portalauth/login";
+const serverUrlLogout = "https://portal.kmitl.ac.th:19008/portalauth/logout";
 const serverUrlHeartbeat = "https://nani.csc.kmitl.ac.th/network-api/data/";
 const generate204Url = "http://www.gstatic.com/generate_204";
 
@@ -28,12 +40,18 @@ function log(message: string): void {
   console.log(`${timestamp}: ${message}`);
 }
 
-async function doPost(url: string, data: string): Promise<any> {
+async function doPost(
+  url: string,
+  data: string,
+  timeout: number = 10000
+): Promise<any> {
   try {
     const response = await axios.post(url, data, {
+      httpsAgent: agent,
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
+      timeout: timeout,
     });
     return { statusCode: response.status, body: response.data };
   } catch (error) {
@@ -54,7 +72,9 @@ interface LoginUrlResponse {
 
 async function getLoginUrl(): Promise<LoginUrlResponse | null> {
   try {
-    const response = await axios.get(generate204Url);
+    const response = await axios.get(generate204Url, {
+      httpsAgent: agent,
+    });
     const html = response.data;
     const urlMatch = html.match(/URL=([^"']+)/);
     if (urlMatch && urlMatch[1]) {
@@ -94,6 +114,31 @@ interface LoginResult {
   tempPassEnable: boolean;
   psessionid: string;
   netSwitchStatus: string;
+}
+
+async function logout() {
+  const postData = new URLSearchParams({
+    username,
+    os: "Chrome v133.0.0.0 on Windows 11 64-bit",
+    speed: "1.0",
+    newauth: "1",
+  }).toString();
+
+  try {
+    log("Logging out...");
+    const response = await doPost(serverUrlLogout, postData, 2000);
+
+    if (response.statusCode !== 200) {
+      log("Logout failed.");
+      return null;
+    } else {
+      log("Logout successful.");
+      return true;
+    }
+  } catch (error: any) {
+    log(`Connection error: ${error.message}`);
+    return null;
+  }
 }
 
 async function login(): Promise<LoginResult | null> {
@@ -156,7 +201,10 @@ async function heartbeat(): Promise<boolean> {
 async function checkConnection(): Promise<boolean> {
   try {
     const response = await axios.get(
-      "https://detectportal.firefox.com/success.txt"
+      "https://detectportal.firefox.com/success.txt",
+      {
+        httpsAgent: agent,
+      }
     );
     return response.status === 200 && response.data === "success\n";
   } catch {

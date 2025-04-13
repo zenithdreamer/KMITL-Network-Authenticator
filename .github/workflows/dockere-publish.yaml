@@ -8,8 +8,8 @@ on:
             - '*'
 
 env:
-    IMAGE_NAME: ghcr.io/zenthaidev/kmitl-network-authenticator
-    USERNAME: zenthaidev
+    IMAGE_NAME: ghcr.io/zenithdreamer/kmitl-network-authenticator
+    USERNAME: zenithdreamer
 
 jobs:
     build:
